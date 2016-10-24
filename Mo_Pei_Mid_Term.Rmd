@@ -1,0 +1,244 @@
+---
+title: "Mid_term_exam"
+author: "Mo Pei"
+date: "10/23/2016"
+output: pdf_document
+---
+
+```{r}
+#packages set up
+# install.packages('moments')
+# install.packages('boot')
+# install.packages('logspline')
+library(boot)
+library(logspline)
+library(quantmod)
+```
+
+1.
+```{r}
+
+
+n<-1000
+
+simu_bonus<-1:n
+for(i in 1:n)
+{
+  gs4<-sample(c('<=4','>4'),1,prob=c(0.6,0.4))
+  
+  if(gs4=='>4')
+  {
+    n_bi<-sample(c(5,6,7,8),1,prob=c(0.35,0.45,0.15,0.05))
+    bonus<-1:n_bi
+    
+    for(j in 1:n_bi)
+    {
+    bonus[j]<-sample(c(10,15,20,25),1,prob=c(0.40,0.35,0.20,0.05)) 
+    }
+    simu_bonus[i]<-sum(bonus)
+  }
+  else 
+  {
+    simu_bonus[i]<-0
+  }
+
+}
+
+hist(simu_bonus,probability = TRUE)
+abline(v=mean(simu_bonus),col='Brown')
+mean_simu_bo<-mean(simu_bonus)
+sd_simu_bo<-sd(simu_bonus)
+
+cat('The 95% confidence interval of the expected value of bonus is bewteen ',mean_simu_bo-1.96*(sd_simu_bo/sqrt(n)) ,' and ', mean_simu_bo+1.96*(sd_simu_bo/sqrt(n)),'\n')
+```
+
+2.
+a.
+```{}
+
+er=c(0.24, 0.15)
+covmat=matrix(c(0.32^2, 0.21*0.32*0.1, 
+                0.21*0.32*0.1, 0.21^2
+                ),nrow=2,ncol=2)
+names(er)=c("Stock_fund","Bond_fund")
+colnames(covmat)=c("Stock_fund","Bond_fund")
+rownames(covmat)=c("Stock_fund","Bond_fund")
+
+gmin.port <- globalMin.portfolio(er, covmat)
+
+
+#b
+ef=efficient.frontier(er,covmat)
+plot(ef$sd,ef$er,type="l",xlab="risk",ylab="return")
+msharp=0
+
+}
+```
+Call:
+globalMin.portfolio(er = er, cov.mat = covmat)
+
+Portfolio expected return:     0.1752833 
+Portfolio standard deviation:  0.1833003 
+Portfolio weights:
+Stock_fund  Bond_fund 
+    0.2809     0.7191 
+
+```{}
+
+rk.free=.05
+tan.port <- tangency.portfolio(er, covmat, rk.free)
+print(tan.port)
+summary(tan.port, risk.free=rk.free)
+plot(tan.port) 
+
+plot(ef$sd,ef$er,type="l",xlab="risk",ylab="return")
+abline(a=rk.free, b=0.7266561)
+```
+Portfolio expected return:     0.191609 
+Portfolio standard deviation:  0.1948776 
+Portfolio Sharpe Ratio:        0.7266561 
+Portfolio weights:
+Stock_fund  Bond_fund 
+    0.4623     0.5377 
+
+
+3.
+a.
+```{r}
+mikeline_new=function(x,y) {
+xmed=median(x)
+xbar1=median(x[x<=xmed])
+ybar1=median(y[x<=xmed])
+xbar2=median(x[x>xmed])
+ybar2=median(y[x>xmed])
+slope = (ybar2-ybar1)/(xbar2-xbar1)
+inter = ybar1-slope*xbar1
+cat("Intercept = ",inter," Slope = ",slope,"\n")
+return(slope)
+}
+
+```
+
+b.
+```{r}
+getSymbols("IBM", from = "2013-09-01")
+getSymbols("SPY",from="2013-09-01")
+spyret=as.numeric(monthlyReturn(SPY))
+ibmret=as.numeric(monthlyReturn(IBM))
+
+fit<-lm(ibmret~spyret)
+summary(fit)
+
+cat('The valueu of Beta by using least squares :',coef(fit)[2] ,'\n')
+
+new_slope<-mikeline_new(spyret,ibmret)
+
+cat('The valueu of Beta by using modified algorithm : ' ,new_slope,'. The value is off by ',coef(fit)[2] , 'the value of least square method.' ,'\n')
+
+
+```
+
+c.
+```{r}
+
+myfunc<-function(data,i) {
+  
+x=data[i,1]
+y=data[i,2]
+
+xmed=median(x)
+xbar1=median(x[x<=xmed])
+ybar1=median(y[x<=xmed])
+xbar2=median(x[x>xmed])
+ybar2=median(y[x>xmed])
+slope = (ybar2-ybar1)/(xbar2-xbar1)
+# inter = ybar1-slope*xbar1
+# cat("Intercept = ",inter," Slope = ",slope,"\n")
+return(slope)
+}
+
+mydata=cbind(spyret,ibmret)
+bfit=boot(mydata,myfunc,R=1000)
+boot.ci(bfit)
+
+
+cat('The bootstrap 95% confidence interval is between ',boot.ci(bfit)$percent[4],' and ',boot.ci(bfit)$percent[5])
+
+```
+
+
+4.
+a.
+```{r}
+
+mystocks=read.csv("http://people.fas.harvard.edu/~mparzen/stat107/dow30.csv",header=FALSE,colClasses="character")
+
+getSymbols("SPY",from="2013-09-01",to ="2016-09-01")
+spyret=as.numeric(monthlyReturn(SPY))
+
+all_beta<-1:nrow(mystocks)
+all_sd<-1:nrow(mystocks)
+for(i in 1:length(all_beta))
+{
+  stock_obj<-getSymbols(mystocks[i,1], from = "2013-09-01",to ="2016-09-01",auto.assign=FALSE)
+  stock_obj_ret=as.numeric(monthlyReturn(stock_obj))
+  
+  fit<-lm(stock_obj_ret~spyret)
+  all_beta[i]<-coef(fit)[2]
+  all_sd[i]<-sd(stock_obj_ret)
+}
+
+cat('The beta of the stocks in mystocks is ',all_beta,'\n')
+```
+
+b.
+```{r}
+cat('The standard deviation of the stocks in mystocks is ',all_beta,'\n')
+```
+
+c.
+```{r}
+plot(all_beta,all_sd,main = 'Scatter plot of beta and sd',xlab = 'Beta',ylab = 'Standard Deviation')
+
+
+```
+
+d.
+```{r}
+cor(all_sd,all_beta)
+cat('Beta and standard deviation are positively correlated. The larger Beta means more variation when the index changes')
+```
+
+e.
+```{r}
+fit_beta_sd<-lm(all_sd~all_beta)
+summary(fit_beta_sd)
+
+cat('According to the regression output, Intercept p value is 0.209200 which is not significant, and slope p value is 0.000861 is smaller than 0.05 which is significant.')
+
+cat('According to the regression output, 33.2% of
+standard deviation’s variability is explained by Beta
+movements.')
+```
+
+f.
+```{r}
+all_beta<-1:nrow(mystocks)
+all_rsquare<-1:nrow(mystocks)
+for(i in 1:length(all_beta))
+{
+  stock_obj<-getSymbols(mystocks[i,1], from = "2013-09-01",to ="2016-09-01",auto.assign=FALSE)
+  stock_obj_ret=as.numeric(monthlyReturn(stock_obj))
+  
+  fit<-lm(stock_obj_ret~spyret)
+  all_beta[i]<-coef(fit)[2]
+  all_rsquare[i]<-summary(fit)$r.squared
+}
+
+plot(all_beta,all_rsquare,main = 'Scatter plot of beta and r squared',xlab = 'Beta',ylab = 'r squared')
+
+cat('For single factor linear model, the R squred expresses the amount of variation explained by x. The rise of Beta would increase the variablity of x')
+```
+
+
+
